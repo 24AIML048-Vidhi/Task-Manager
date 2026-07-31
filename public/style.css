@@ -1,0 +1,369 @@
+/* Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+body{
+
+    background:linear-gradient(180deg,#eef2ff,#f8fafc);
+
+    min-height:100vh;
+
+}
+
+/* Header */
+
+.header{
+
+    background:linear-gradient(135deg,#6366f1,#8b5cf6);
+
+    color:white;
+
+    text-align:center;
+
+    padding:35px 20px;
+
+    box-shadow:0 10px 25px rgba(99,102,241,.25);
+
+}
+
+.header h1{
+
+    font-size:42px;
+
+    margin-bottom:8px;
+
+}
+
+.header p{
+
+    font-size:20px;
+
+    opacity:.95;
+
+}
+
+/* Main Container */
+
+.container{
+
+    width:90%;
+
+    max-width:1300px;
+
+    margin:35px auto;
+
+}
+
+/* Card */
+
+.card{
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:30px;
+
+    box-shadow:0 12px 30px rgba(0,0,0,.08);
+
+    margin-bottom:30px;
+
+}
+
+/* Form */
+
+.form{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:15px;
+
+    flex-wrap:wrap;
+
+}
+
+.form input[type=text]{
+
+    flex:1;
+
+    min-width:250px;
+
+    padding:16px;
+
+    border:2px solid #e5e7eb;
+
+    border-radius:12px;
+
+    font-size:17px;
+
+    transition:.3s;
+
+}
+
+.form input[type=text]:focus{
+
+    outline:none;
+
+    border-color:#6366f1;
+
+    box-shadow:0 0 15px rgba(99,102,241,.2);
+
+}
+
+.checkbox{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:8px;
+
+    font-weight:600;
+
+    font-size:18px;
+
+}
+
+.checkbox input{
+
+    width:20px;
+
+    height:20px;
+
+}
+
+/* Buttons */
+
+button{
+
+    border:none;
+
+    cursor:pointer;
+
+    padding:14px 24px;
+
+    border-radius:10px;
+
+    color:white;
+
+    font-size:16px;
+
+    font-weight:600;
+
+    transition:.3s;
+
+}
+
+button:hover{
+
+    transform:translateY(-2px);
+
+    box-shadow:0 8px 18px rgba(0,0,0,.15);
+
+}
+
+.add-btn{
+
+    background:#10b981;
+
+}
+
+.add-btn:hover{
+
+    background:#059669;
+
+}
+
+.refresh-btn{
+
+    background:#3b82f6;
+
+}
+
+.refresh-btn:hover{
+
+    background:#2563eb;
+
+}
+
+.update-btn{
+
+    background:#f59e0b;
+
+}
+
+.update-btn:hover{
+
+    background:#d97706;
+
+}
+
+.delete-btn{
+
+    background:#ef4444;
+
+}
+
+.delete-btn:hover{
+
+    background:#dc2626;
+
+}
+
+/* Table */
+
+table{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+    overflow:hidden;
+
+    border-radius:12px;
+
+}
+
+thead{
+
+    background:linear-gradient(135deg,#6366f1,#8b5cf6);
+
+    color:white;
+
+}
+
+th{
+
+    padding:18px;
+
+    font-size:18px;
+
+}
+
+td{
+
+    padding:18px;
+
+    text-align:center;
+
+    border-bottom:1px solid #e5e7eb;
+
+}
+
+tbody tr{
+
+    transition:.3s;
+
+}
+
+tbody tr:hover{
+
+    background:#f8fafc;
+
+}
+
+/* Status */
+
+.completed{
+
+    background:#dcfce7;
+
+    color:#15803d;
+
+    padding:8px 16px;
+
+    border-radius:30px;
+
+    font-weight:600;
+
+    display:inline-block;
+
+}
+
+.pending{
+
+    background:#fee2e2;
+
+    color:#dc2626;
+
+    padding:8px 16px;
+
+    border-radius:30px;
+
+    font-weight:600;
+
+    display:inline-block;
+
+}
+
+/* Footer */
+
+.footer{
+
+    text-align:center;
+
+    color:#6b7280;
+
+    margin-top:30px;
+
+    font-size:15px;
+
+}
+
+/* Responsive */
+
+@media(max-width:768px){
+
+    .header h1{
+
+        font-size:32px;
+
+    }
+
+    .header p{
+
+        font-size:16px;
+
+    }
+
+    .form{
+
+        flex-direction:column;
+
+        align-items:stretch;
+
+    }
+
+    .checkbox{
+
+        justify-content:flex-start;
+
+    }
+
+    button{
+
+        width:100%;
+
+    }
+
+    table{
+
+        font-size:14px;
+
+    }
+
+    th,td{
+
+        padding:12px;
+
+    }
+
+}
