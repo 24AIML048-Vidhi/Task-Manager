@@ -1,105 +1,116 @@
-const fs = require("fs");
-const path = require("path");
+const Task = require("../models/Task");
 
-const filePath = path.join(__dirname, "../data/tasks.json");
+// GET /tasks
+const getAllTasks = async (req, res, next) => {
+  try {
+    const tasks = await Task.find().sort({ createdAt: -1 });
 
-// Read tasks from JSON file
-const readTasks = () => {
-    const data = fs.readFileSync(filePath, "utf8");
-    return JSON.parse(data);
+    res.status(200).json({
+      success: true,
+      count: tasks.length,
+      data: tasks,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Write tasks to JSON file
-const writeTasks = (tasks) => {
-    fs.writeFileSync(filePath, JSON.stringify(tasks, null, 2));
-};
+// GET /tasks/:id
+const getTaskById = async (req, res, next) => {
+  try {
+    const task = await Task.findById(req.params.id);
 
-// GET ALL TASKS
-exports.getAllTasks = (req, res) => {
-    const tasks = readTasks();
-    res.status(200).json(tasks);
-};
-
-// CREATE TASK
-exports.createTask = (req, res) => {
-
-    const tasks = readTasks();
-
-    const { title, completed } = req.body;
-
-    if (!title) {
-        return res.status(400).json({
-            message: "Title is required"
-        });
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
     }
 
-    const newTask = {
-        id: tasks.length > 0 ? tasks[tasks.length - 1].id + 1 : 1,
-        title,
-        completed: completed || false
-    };
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    tasks.push(newTask);
+// POST /tasks
+const createTask = async (req, res, next) => {
+  try {
+    const { title, description, priority } = req.body;
 
-    writeTasks(tasks);
+    const task = await Task.create({
+      title,
+      description,
+      priority,
+    });
 
     res.status(201).json({
-        message: "Task Created Successfully",
-        task: newTask
+      success: true,
+      message: "Task created successfully",
+      data: task,
     });
-
+  } catch (error) {
+    next(error);
+  }
 };
 
-// UPDATE TASK
-exports.updateTask = (req, res) => {
-
-    const tasks = readTasks();
-
-    const id = Number(req.params.id);
-
-    const task = tasks.find(t => t.id === id);
+// PUT /tasks/:id
+const updateTask = async (req, res, next) => {
+  try {
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!task) {
-        return res.status(404).json({
-            message: "Task Not Found"
-        });
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
     }
 
-    task.title = req.body.title || task.title;
-
-    if (req.body.completed !== undefined)
-        task.completed = req.body.completed;
-
-    writeTasks(tasks);
-
     res.status(200).json({
-        message: "Task Updated Successfully",
-        task
+      success: true,
+      message: "Task updated successfully",
+      data: task,
     });
-
+  } catch (error) {
+    next(error);
+  }
 };
 
-// DELETE TASK
-exports.deleteTask = (req, res) => {
-
-    let tasks = readTasks();
-
-    const id = Number(req.params.id);
-
-    const task = tasks.find(t => t.id === id);
+// DELETE /tasks/:id
+const deleteTask = async (req, res, next) => {
+  try {
+    const task = await Task.findByIdAndDelete(req.params.id);
 
     if (!task) {
-        return res.status(404).json({
-            message: "Task Not Found"
-        });
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
     }
 
-    tasks = tasks.filter(t => t.id !== id);
-
-    writeTasks(tasks);
-
     res.status(200).json({
-        message: "Task Deleted Successfully"
+      success: true,
+      message: "Task deleted successfully",
     });
+  } catch (error) {
+    next(error);
+  }
+};
 
+module.exports = {
+  getAllTasks,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask,
 };
