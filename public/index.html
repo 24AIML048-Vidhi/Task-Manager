@@ -1,118 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Task Management System</title>
-
-    <link rel="stylesheet" href="style.css">
-
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
+    <script>
+        (function() {
+            const token = localStorage.getItem("token");
+            if (token) {
+                window.location.replace("/task-manager.html");
+            } else {
+                window.location.replace("/login.html");
+            }
+        })();
+    </script>
 </head>
-
-<body>
-
-    <!-- Header -->
-    <div class="header">
-
-        <h1>
-            <i class="fa-solid fa-list-check"></i>
-            Task Management System
-        </h1>
-
-        <p>Manage your daily tasks easily</p>
-
+<body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f4f6f9;">
+    <div style="text-align: center;">
+        <p>Redirecting to Task Manager...</p>
     </div>
-
-    <div class="container">
-
-        <!-- Form Card -->
-        <div class="card">
-
-            <div class="form">
-
-                <input
-                    type="text"
-                    id="title"
-                    placeholder="Enter Task Title">
-
-                <label class="checkbox">
-
-                    <input
-                        type="checkbox"
-                        id="completed">
-
-                    Completed
-
-                </label>
-
-                <button class="add-btn" onclick="addTask()">
-
-                    <i class="fa-solid fa-plus"></i>
-
-                    Add
-
-                </button>
-
-                <button class="refresh-btn" onclick="loadTasks()">
-
-                    <i class="fa-solid fa-rotate"></i>
-
-                    Refresh
-
-                </button>
-
-            </div>
-
-        </div>
-
-        <!-- Table Card -->
-        <div class="card table-card">
-
-            <table>
-
-                <thead>
-
-                    <tr>
-
-                        <th>ID</th>
-
-                        <th>Task</th>
-
-                        <th>Status</th>
-
-                        <th>Actions</th>
-
-                    </tr>
-
-                </thead>
-
-                <tbody id="taskTable">
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-
-            <p>
-                <i class="fa-solid fa-code"></i>
-                Built using Node.js, Express.js & JavaScript
-            </p>
-
-        </div>
-
-    </div>
-
-    <script src="script.js"></script>
-
 </body>
-
-</html>
+</html>

@@ -1,54 +1,149 @@
 const mongoose = require("mongoose");
 
-// Define Task Schema
 const taskSchema = new mongoose.Schema(
-  {
-    title: {
-      type: String,
-      required: [true, "Title is required"],
-      trim: true,
+    {
+        // ==========================================
+        // Task Owner
+        // ==========================================
+
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: [true, "Task user is required"],
+        },
+
+        // ==========================================
+        // Task Title
+        // ==========================================
+
+        title: {
+            type: String,
+            required: [true, "Title is required"],
+            trim: true,
+            minlength: [1, "Title cannot be empty"],
+        },
+
+        // ==========================================
+        // Description
+        // ==========================================
+
+        description: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+
+        // ==========================================
+        // Status
+        // ==========================================
+
+        status: {
+            type: String,
+
+            enum: {
+                values: [
+                    "pending",
+                    "in-progress",
+                    "completed",
+                ],
+
+                message:
+                    "Status must be pending, in-progress, or completed",
+            },
+
+            default: "pending",
+        },
+
+        // ==========================================
+        // Old Completed Field
+        // ==========================================
+
+        completed: {
+            type: Boolean,
+            default: false,
+        },
+
+        // ==========================================
+        // Priority
+        // ==========================================
+
+        priority: {
+            type: String,
+
+            enum: {
+                values: [
+                    "low",
+                    "medium",
+                    "high",
+                ],
+
+                message:
+                    "Priority must be low, medium, or high",
+            },
+
+            default: "medium",
+        },
     },
 
-    description: {
-      type: String,
-      default: "",
-    },
-
-    completed: {
-      type: Boolean,
-      default: false,
-    },
-
-    priority: {
-      type: String,
-      enum: {
-        values: ["low", "medium", "high"],
-        message: "Priority must be low, medium, or high",
-      },
-      default: "medium",
-    },
-
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  {
-    versionKey: false,
-  }
+    {
+        timestamps: true,
+        versionKey: false,
+    }
 );
 
-// Pre-save hook
-// Automatically trims whitespace from the title
-taskSchema.pre("save", function (next) {
-  if (this.title) {
-    this.title = this.title.trim();
-  }
 
-  next();
+// ==================================================
+// Pre Save
+// ==================================================
+
+taskSchema.pre("save", function (next) {
+
+    if (this.title) {
+        this.title = this.title.trim();
+    }
+
+    if (this.description) {
+        this.description = this.description.trim();
+    }
+
+    this.completed =
+        this.status === "completed";
+
+    next();
 });
 
-// Create and export Task model
-const Task = mongoose.model("Task", taskSchema);
+
+// ==================================================
+// Pre Update
+// ==================================================
+
+taskSchema.pre(
+    "findOneAndUpdate",
+    function (next) {
+
+        const update = this.getUpdate();
+
+        if (update.status !== undefined) {
+
+            update.completed =
+                update.status === "completed";
+
+        } else if (
+            update.completed !== undefined
+        ) {
+
+            update.status =
+                update.completed
+                    ? "completed"
+                    : "pending";
+        }
+
+        next();
+    }
+);
+
+
+const Task =
+    mongoose.model("Task", taskSchema);
 
 module.exports = Task;

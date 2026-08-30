@@ -1,291 +1,849 @@
-// public/script.js
+// ==================================================
+// API
+// ==================================================
 
-// API endpoint
 const API = "/tasks";
 
-// --------------------------------------------------
-// Load All Tasks
-// --------------------------------------------------
+
+// Currently selected status
+
+let currentStatus = "pending";
+
+
+// Store all tasks
+
+let allTasks = [];
+
+
+// ==================================================
+// LOAD TASKS
+// ==================================================
 
 async function loadTasks() {
-    try {
-        const response = await fetch(API);
-        const result = await response.json();
 
-        console.log("GET /tasks response:", result);
+    try {
+
+        const response =
+            await fetch(API);
+
+
+        const result =
+            await response.json();
+
 
         if (!response.ok) {
-            throw new Error(result.message || "Failed to load tasks");
+
+            throw new Error(
+                result.message ||
+                "Failed to load tasks"
+            );
+
         }
 
-        const tasks = result.data || [];
 
-        const table = document.getElementById("taskTable");
+        allTasks =
+            result.data || [];
 
-        table.innerHTML = "";
 
-        // No tasks
-        if (tasks.length === 0) {
-            table.innerHTML = `
-                <tr>
-                    <td colspan="4">No Tasks Available</td>
-                </tr>
-            `;
-            return;
-        }
+        displayTasks();
 
-        // Display tasks
-        tasks.forEach((task, index) => {
+
+    } catch (error) {
+
+        console.error(
+            "Load tasks error:",
+            error
+        );
+
+
+        alert(
+            "Unable to load tasks."
+        );
+
+    }
+
+}
+
+
+// ==================================================
+// GET STATUS NAME
+// ==================================================
+
+function getStatusName(status) {
+
+    if (status === "pending") {
+
+        return "Pending";
+
+    }
+
+
+    if (status === "in-progress") {
+
+        return "In Progress";
+
+    }
+
+
+    if (status === "completed") {
+
+        return "Completed";
+
+    }
+
+
+    return "Pending";
+
+}
+
+
+// ==================================================
+// GET ACTUAL TASK STATUS
+// Handles old tasks
+// ==================================================
+
+function getTaskStatus(task) {
+
+    if (task.status) {
+
+        return task.status;
+
+    }
+
+
+    // Old task
+
+    if (task.completed === true) {
+
+        return "completed";
+
+    }
+
+
+    return "pending";
+
+}
+
+
+// ==================================================
+// DISPLAY TASKS
+// ==================================================
+
+function displayTasks() {
+
+    const table =
+        document.getElementById(
+            "taskTable"
+        );
+
+
+    table.innerHTML = "";
+
+
+    const filteredTasks =
+        allTasks.filter(task => {
+
+            return (
+                getTaskStatus(task) ===
+                currentStatus
+            );
+
+        });
+
+
+    if (
+        filteredTasks.length === 0
+    ) {
+
+        table.innerHTML = `
+
+            <tr>
+
+                <td colspan="4">
+
+                    No
+                    ${getStatusName(
+                        currentStatus
+                    )}
+                    Tasks Available
+
+                </td>
+
+            </tr>
+
+        `;
+
+        updateDownloadButton();
+
+        return;
+
+    }
+
+
+    filteredTasks.forEach(
+        (task, index) => {
+
+            const status =
+                getTaskStatus(task);
+
+
             table.innerHTML += `
+
                 <tr>
 
-                    <!-- Display serial number instead of MongoDB ID -->
-                    <td>${index + 1}</td>
-
-                    <!-- Task title -->
-                    <td>${task.title}</td>
-
-                    <!-- Task status -->
                     <td>
-                        <span class="${task.completed ? "completed" : "pending"}">
-                            ${task.completed ? "Completed" : "Pending"}
-                        </span>
+                        ${index + 1}
                     </td>
 
-                    <!-- Actions -->
+                    <td>
+                        ${task.title}
+                    </td>
+
+                    <td>
+
+                        <span
+                            class="status ${status}"
+                        >
+
+                            ${getStatusName(
+                                status
+                            )}
+
+                        </span>
+
+                    </td>
+
                     <td>
 
                         <button
                             class="update-btn"
-                            onclick="editTask('${task._id}')"
+                            onclick="editTask(
+                                '${task._id}'
+                            )"
                         >
-                            <i class="fa-solid fa-pen"></i>
+
+                            <i
+                                class="fa-solid fa-pen"
+                            ></i>
+
                             Update
+
                         </button>
+
 
                         <button
                             class="delete-btn"
-                            onclick="deleteTask('${task._id}')"
+                            onclick="deleteTask(
+                                '${task._id}'
+                            )"
                         >
-                            <i class="fa-solid fa-trash"></i>
+
+                            <i
+                                class="fa-solid fa-trash"
+                            ></i>
+
                             Delete
+
                         </button>
 
                     </td>
 
                 </tr>
-            `;
-        });
 
-    } catch (error) {
-        console.error("Load tasks error:", error);
-        alert("Unable to load tasks.");
-    }
+            `;
+
+        }
+    );
+
+
+    updateDownloadButton();
+
 }
 
-// --------------------------------------------------
-// Add Task
-// --------------------------------------------------
+
+// ==================================================
+// FILTER
+// ==================================================
+
+function filterTasks(status) {
+
+    currentStatus =
+        status;
+
+
+    updateActiveButton();
+
+
+    displayTasks();
+
+}
+
+
+// ==================================================
+// ACTIVE BUTTON
+// ==================================================
+
+function updateActiveButton() {
+
+    const buttons = [
+
+        "pendingBtn",
+
+        "inProgressBtn",
+
+        "completedBtn",
+
+    ];
+
+
+    buttons.forEach(id => {
+
+        const button =
+            document.getElementById(id);
+
+
+        if (button) {
+
+            button.classList.remove(
+                "active"
+            );
+
+        }
+
+    });
+
+
+    if (
+        currentStatus ===
+        "pending"
+    ) {
+
+        document
+            .getElementById(
+                "pendingBtn"
+            )
+            .classList.add(
+                "active"
+            );
+
+    }
+
+
+    if (
+        currentStatus ===
+        "in-progress"
+    ) {
+
+        document
+            .getElementById(
+                "inProgressBtn"
+            )
+            .classList.add(
+                "active"
+            );
+
+    }
+
+
+    if (
+        currentStatus ===
+        "completed"
+    ) {
+
+        document
+            .getElementById(
+                "completedBtn"
+            )
+            .classList.add(
+                "active"
+            );
+
+    }
+
+}
+
+
+// ==================================================
+// DOWNLOAD BUTTON
+// ==================================================
+
+function updateDownloadButton() {
+
+    const button =
+        document.getElementById(
+            "downloadPdfBtn"
+        );
+
+
+    if (!button) {
+
+        return;
+
+    }
+
+
+    button.innerHTML = `
+
+        <i class="fa-solid fa-file-pdf"></i>
+
+        Download
+        ${getStatusName(
+            currentStatus
+        )}
+        Tasks PDF
+
+    `;
+
+}
+
+
+// ==================================================
+// DOWNLOAD PDF
+// ==================================================
+
+function downloadCurrentStatusPDF() {
+
+    const url =
+        `${API}/download/${currentStatus}`;
+
+
+    window.location.href =
+        url;
+
+}
+
+
+// ==================================================
+// ADD TASK
+// ==================================================
 
 async function addTask() {
 
-    const titleInput = document.getElementById("title");
-    const completedInput = document.getElementById("completed");
+    const titleInput =
+        document.getElementById(
+            "title"
+        );
 
-    const title = titleInput.value.trim();
-    const completed = completedInput.checked;
 
-    // Validate title
-    if (title === "") {
-        alert("Please enter a task title.");
+    const statusInput =
+        document.getElementById(
+            "status"
+        );
+
+
+    const title =
+        titleInput.value.trim();
+
+
+    const status =
+        statusInput.value;
+
+
+    if (!title) {
+
+        alert(
+            "Please enter a task title."
+        );
+
         return;
+
     }
+
 
     try {
 
-        const response = await fetch(API, {
-            method: "POST",
+        const response =
+            await fetch(
+                API,
+                {
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+                    method: "POST",
 
-            body: JSON.stringify({
-                title: title,
-                completed: completed
-            })
-        });
+                    headers: {
 
-        const result = await response.json();
+                        "Content-Type":
+                            "application/json",
 
-        console.log("POST /tasks response:", result);
+                    },
 
-        // Handle error
+                    body:
+                        JSON.stringify({
+
+                            title:
+
+                                title,
+
+                            status:
+
+                                status,
+
+                        }),
+
+                }
+            );
+
+
+        const result =
+            await response.json();
+
+
         if (!response.ok) {
 
-            if (result.errors) {
-
-                const messages = Object.values(result.errors).join("\n");
-
-                alert(`${result.message}\n${messages}`);
-
-            } else {
-
-                alert(result.message || "Failed to add task.");
-            }
+            alert(
+                result.message ||
+                "Failed to add task."
+            );
 
             return;
+
         }
 
-        // Success
-        alert(result.message || "Task created successfully.");
 
-        // Clear input
+        alert(
+            "Task created successfully."
+        );
+
+
         titleInput.value = "";
-        completedInput.checked = false;
 
-        // Reload tasks
+
+        statusInput.value =
+            "pending";
+
+
         await loadTasks();
+
+
+        // Show status where
+        // task was added
+
+        filterTasks(status);
+
 
     } catch (error) {
 
-        console.error("Add task error:", error);
+        console.error(
+            "Add task error:",
+            error
+        );
 
-        alert("Failed to add task.");
+
+        alert(
+            "Failed to add task."
+        );
+
     }
+
 }
 
-// --------------------------------------------------
-// Update Task
-// --------------------------------------------------
+
+// ==================================================
+// UPDATE TASK
+// ==================================================
 
 async function editTask(id) {
 
-    const title = prompt("Enter Updated Task Title:");
+    const task =
+        allTasks.find(
+            item =>
+                item._id === id
+        );
 
-    // User cancelled
+
+    if (!task) {
+
+        alert(
+            "Task not found."
+        );
+
+        return;
+
+    }
+
+
+    const title =
+        prompt(
+            "Enter Updated Task Title:",
+            task.title
+        );
+
+
     if (title === null) {
+
         return;
+
     }
 
-    // Validate title
-    if (title.trim() === "") {
-        alert("Task title cannot be empty.");
+
+    if (!title.trim()) {
+
+        alert(
+            "Task title cannot be empty."
+        );
+
         return;
+
     }
 
-    const completed = confirm("Mark this task as Completed?");
+
+    const choice =
+        prompt(
+
+            "Select Status:\n\n" +
+
+            "1. Pending\n" +
+
+            "2. In Progress\n" +
+
+            "3. Completed\n\n" +
+
+            "Enter 1, 2 or 3:",
+
+            getStatusNumber(
+                getTaskStatus(task)
+            )
+
+        );
+
+
+    if (choice === null) {
+
+        return;
+
+    }
+
+
+    let status;
+
+
+    if (choice === "1") {
+
+        status = "pending";
+
+    }
+
+    else if (choice === "2") {
+
+        status = "in-progress";
+
+    }
+
+    else if (choice === "3") {
+
+        status = "completed";
+
+    }
+
+    else {
+
+        alert(
+            "Invalid status."
+        );
+
+        return;
+
+    }
+
 
     try {
 
-        const response = await fetch(`${API}/${id}`, {
+        const response =
+            await fetch(
+                `${API}/${id}`,
+                {
 
-            method: "PUT",
+                    method: "PUT",
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+                    headers: {
 
-            body: JSON.stringify({
-                title: title.trim(),
-                completed: completed
-            })
-        });
+                        "Content-Type":
+                            "application/json",
 
-        const result = await response.json();
+                    },
 
-        console.log("PUT /tasks response:", result);
+                    body:
+                        JSON.stringify({
 
-        // Handle error
+                            title:
+                                title.trim(),
+
+                            status:
+                                status,
+
+                        }),
+
+                }
+            );
+
+
+        const result =
+            await response.json();
+
+
         if (!response.ok) {
 
-            if (result.errors) {
-
-                const messages = Object.values(result.errors).join("\n");
-
-                alert(`${result.message}\n${messages}`);
-
-            } else {
-
-                alert(result.message || "Failed to update task.");
-            }
+            alert(
+                result.message ||
+                "Failed to update task."
+            );
 
             return;
+
         }
 
-        // Success
-        alert(result.message || "Task updated successfully.");
 
-        // Reload tasks
+        alert(
+            "Task updated successfully."
+        );
+
+
         await loadTasks();
+
+
+        filterTasks(status);
+
 
     } catch (error) {
 
-        console.error("Update task error:", error);
+        console.error(
+            "Update task error:",
+            error
+        );
 
-        alert("Failed to update task.");
+
+        alert(
+            "Failed to update task."
+        );
+
     }
+
 }
 
-// --------------------------------------------------
-// Delete Task
-// --------------------------------------------------
+
+// ==================================================
+// STATUS NUMBER
+// ==================================================
+
+function getStatusNumber(status) {
+
+    if (status === "pending") {
+
+        return "1";
+
+    }
+
+
+    if (status === "in-progress") {
+
+        return "2";
+
+    }
+
+
+    if (status === "completed") {
+
+        return "3";
+
+    }
+
+
+    return "1";
+
+}
+
+
+// ==================================================
+// DELETE TASK
+// ==================================================
 
 async function deleteTask(id) {
 
-    const confirmDelete = confirm(
-        "Are you sure you want to delete this task?"
-    );
+    const confirmed =
+        confirm(
+            "Are you sure you want to delete this task?"
+        );
 
-    if (!confirmDelete) {
+
+    if (!confirmed) {
+
         return;
+
     }
+
 
     try {
 
-        const response = await fetch(`${API}/${id}`, {
+        const response =
+            await fetch(
+                `${API}/${id}`,
+                {
 
-            method: "DELETE"
-        });
+                    method: "DELETE",
 
-        const result = await response.json();
+                }
+            );
 
-        console.log("DELETE /tasks response:", result);
 
-        // Handle error
+        const result =
+            await response.json();
+
+
         if (!response.ok) {
 
-            alert(result.message || "Failed to delete task.");
+            alert(
+                result.message ||
+                "Failed to delete task."
+            );
 
             return;
+
         }
 
-        // Success
-        alert(result.message || "Task deleted successfully.");
 
-        // Reload tasks
+        alert(
+            "Task deleted successfully."
+        );
+
+
         await loadTasks();
+
 
     } catch (error) {
 
-        console.error("Delete task error:", error);
+        console.error(
+            "Delete error:",
+            error
+        );
 
-        alert("Failed to delete task.");
+
+        alert(
+            "Failed to delete task."
+        );
+
     }
+
 }
 
-// --------------------------------------------------
-// Refresh Button
-// --------------------------------------------------
 
-function refreshTasks() {
-    loadTasks();
-}
+// ==================================================
+// PAGE LOAD
+// ==================================================
 
-// --------------------------------------------------
-// Load Tasks When Page Opens
-// --------------------------------------------------
+window.addEventListener(
+    "DOMContentLoaded",
+    () => {
 
-window.addEventListener("DOMContentLoaded", () => {
-    loadTasks();
-});
+        currentStatus =
+            "pending";
+
+
+        updateActiveButton();
+
+
+        updateDownloadButton();
+
+
+        loadTasks();
+
+    }
+);

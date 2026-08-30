@@ -15,6 +15,7 @@ const logger = require("./middleware/logger");
 const validateContentType = require("./middleware/validateContentType");
 
 // Routes
+const authRoutes = require("./routes/authRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 
 // Error handling middleware
@@ -57,6 +58,9 @@ app.use(express.static(path.join(__dirname, "public")));
 // API Routes
 // --------------------------------------------------
 
+// Authentication routes under /auth
+app.use("/auth", authRoutes);
+
 // All task APIs are available under /tasks
 app.use("/tasks", taskRoutes);
 
@@ -64,9 +68,9 @@ app.use("/tasks", taskRoutes);
 // Root Route
 // --------------------------------------------------
 
-// Open frontend when visiting http://localhost:5000/
+// Open login page when visiting http://localhost:PORT/
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"));
+    res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
 // --------------------------------------------------
