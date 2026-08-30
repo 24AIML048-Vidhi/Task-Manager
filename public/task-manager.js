@@ -327,6 +327,8 @@ async function addTask(event) {
         const defaultRadio = document.querySelector('input[name="status"][value="pending"]');
         if (defaultRadio) defaultRadio.checked = true;
 
+        alert("Task added successfully!");
+
         await loadTasks();
         showStatusTasks(status);
     } catch (error) {
@@ -399,6 +401,8 @@ async function editTask(id) {
             throw new Error(result.message || "Failed to update task.");
         }
 
+        alert("Task updated successfully!");
+
         await loadTasks();
         showStatusTasks(newStatus);
     } catch (error) {
@@ -434,6 +438,8 @@ async function deleteTask(id) {
         if (!response.ok) {
             throw new Error(result.message || "Failed to delete task.");
         }
+
+        alert("Task deleted successfully!");
 
         await loadTasks();
     } catch (error) {
