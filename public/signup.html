@@ -286,14 +286,33 @@
 
 
                 <!-- ==================================================
-                     Password Requirements
+                     Account Role (User / Admin)
                 ================================================== -->
 
-                <div class="password-requirements">
+                <div class="input-group">
 
-                    <p>
-                        Password must contain at least 6 characters.
-                    </p>
+                    <label for="role">
+
+                        <i class="fa-solid fa-user-shield"></i>
+
+                        Account Role
+
+                    </label>
+
+                    <div class="input-wrapper">
+
+                        <i class="fa-solid fa-user-shield input-icon"></i>
+
+                        <select
+                            id="role"
+                            name="role"
+                            style="width: 100%; padding: 12px 14px 12px 42px; border: 1.5px solid #e2e8f0; border-radius: 10px; background: white; font-size: 14px; color: #1e293b; font-weight: 500;"
+                        >
+                            <option value="user" selected>Standard User (Task Management)</option>
+                            <option value="admin">Administrator (Date-Range Report Generation & Team Scope)</option>
+                        </select>
+
+                    </div>
 
                 </div>
 

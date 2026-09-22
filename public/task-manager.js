@@ -1,14 +1,22 @@
 // ==================================================
 // TASK-MANAGER.JS
-// Authenticated Task Management Client
+// Task Management Client with Role-Based Views & Notifications
 // ==================================================
 
 const API = "/tasks";
 let currentStatus = "pending";
 let allTasks = [];
+let currentUser = null;
+
+// Status workflow hierarchy ranks (strictly forward-only)
+const STATUS_RANKS = {
+    pending: 1,
+    "in-progress": 2,
+    completed: 3,
+};
 
 // ==================================================
-// Authentication & Session Validation
+// Session Management & Auth
 // ==================================================
 
 function getToken() {
@@ -24,6 +32,22 @@ function getUser() {
         return null;
     }
 }
+
+let idleTimer = null;
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+function resetIdleTimer() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        alert("Your session has timed out due to inactivity. Please log in again.");
+        logoutUser();
+    }, IDLE_TIMEOUT_MS);
+}
+
+// Activity listeners for session tracking
+["mousemove", "keydown", "click", "scroll"].forEach((evt) => {
+    window.addEventListener(evt, resetIdleTimer, { passive: true });
+});
 
 async function validateSession() {
     const token = getToken();
@@ -48,10 +72,12 @@ async function validateSession() {
 
         const result = await response.json();
         if (result.user) {
+            currentUser = result.user;
             localStorage.setItem("user", JSON.stringify(result.user));
             renderUserInfo(result.user);
         }
 
+        resetIdleTimer();
         return true;
     } catch (err) {
         console.error("Session validation error:", err);
@@ -59,15 +85,72 @@ async function validateSession() {
     }
 }
 
+// ==================================================
+// Render User Info & Role-Based View (Admin vs User)
+// ==================================================
+
 function renderUserInfo(user) {
     if (!user) user = getUser();
     if (!user) return;
 
+    currentUser = user;
     const usernameDisplay = document.getElementById("usernameDisplay");
     const emailDisplay = document.getElementById("emailDisplay");
+    const roleBadge = document.getElementById("roleBadge");
+    const avatarEl = document.getElementById("userAvatar");
+    const adminBanner = document.getElementById("adminBanner");
+    const adminReportCard = document.getElementById("adminReportCard");
+    const userColumnHeader = document.getElementById("userColumnHeader");
+    const headerSubtitle = document.getElementById("headerSubtitle");
 
     if (usernameDisplay) usernameDisplay.textContent = user.username || "User";
     if (emailDisplay) emailDisplay.textContent = user.email || "";
+
+    const role = (user.role || "user").toLowerCase();
+    if (roleBadge) {
+        roleBadge.textContent = role.toUpperCase();
+        roleBadge.className = `role-badge role-${role}`;
+    }
+
+    if (avatarEl) {
+        const username = user.username || "User";
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=6366f1&color=fff&bold=true`;
+        const profilePic = user.profilePicture || fallbackUrl;
+
+        avatarEl.innerHTML = `
+            <img 
+                src="${escapeHtml(profilePic)}" 
+                alt="${escapeHtml(username)}" 
+                referrerpolicy="no-referrer"
+                onerror="this.onerror=null; this.src='${fallbackUrl}';"
+                style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;"
+            >
+        `;
+    }
+
+    // Role-Specific View Adaptation (Admin vs Standard User)
+    const isAdmin = role === "admin";
+
+    if (adminBanner) {
+        adminBanner.style.display = isAdmin ? "block" : "none";
+    }
+
+    if (adminReportCard) {
+        // Date-Range Report generation is strictly for Admins
+        adminReportCard.style.display = isAdmin ? "block" : "none";
+    }
+
+    if (userColumnHeader) {
+        userColumnHeader.style.display = isAdmin ? "table-cell" : "none";
+    }
+
+    if (headerSubtitle) {
+        if (isAdmin) {
+            headerSubtitle.textContent = "Administrator Portal • System-wide Oversight & Date-Range Reports";
+        } else {
+            headerSubtitle.textContent = "Manage and track your project tasks easily";
+        }
+    }
 }
 
 function logoutUser() {
@@ -164,7 +247,6 @@ function updateCounts() {
 function showStatusTasks(status) {
     currentStatus = status;
 
-    // Update active class on tabs
     document.querySelectorAll(".status-tab").forEach((tab) => {
         if (tab.getAttribute("data-status") === status) {
             tab.classList.add("active");
@@ -173,7 +255,6 @@ function showStatusTasks(status) {
         }
     });
 
-    // Update title and description
     const titleEl = document.getElementById("currentStatusTitle");
     const descEl = document.getElementById("taskListDescription");
 
@@ -185,7 +266,7 @@ function showStatusTasks(status) {
         if (descEl) descEl.textContent = "Tasks currently being worked on";
     } else if (status === "completed") {
         if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-circle-check"></i> Completed Tasks';
-        if (descEl) descEl.textContent = "Tasks that have been finished";
+        if (descEl) descEl.textContent = "Tasks that have been finished (Confirmation email sent)";
     }
 
     displayTasks();
@@ -205,11 +286,14 @@ function displayTasks() {
         (task) => getTaskStatus(task) === currentStatus
     );
 
+    const isAdmin = currentUser && currentUser.role === "admin";
+    const colSpan = isAdmin ? 8 : 7;
+
     if (filteredTasks.length === 0) {
         table.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align:center; padding: 2rem; color: #888;">
-                    <i class="fa-regular fa-folder-open" style="font-size: 2rem; margin-bottom: 0.5rem; display:block;"></i>
+                <td colspan="${colSpan}" style="text-align:center; padding: 2.5rem; color: #888;">
+                    <i class="fa-regular fa-folder-open" style="font-size: 2.2rem; margin-bottom: 0.5rem; display:block; color:#94a3b8;"></i>
                     No ${getStatusName(currentStatus)} Tasks Available
                 </td>
             </tr>
@@ -223,6 +307,35 @@ function displayTasks() {
         const createdDate = task.createdAt
             ? new Date(task.createdAt).toLocaleDateString()
             : "N/A";
+
+        // Generate forward-only workflow progression buttons
+        let workflowButton = "";
+        if (status === "pending") {
+            workflowButton = `
+                <button class="flow-btn flow-start" onclick="advanceTaskWorkflow('${task._id}', 'in-progress')" title="Advance to In Progress">
+                    <i class="fa-solid fa-play"></i> Start
+                </button>
+                <button class="flow-btn flow-complete" onclick="advanceTaskWorkflow('${task._id}', 'completed')" title="Mark as Completed & Send Email">
+                    <i class="fa-solid fa-check"></i> Complete
+                </button>
+            `;
+        } else if (status === "in-progress") {
+            workflowButton = `
+                <button class="flow-btn flow-complete" onclick="advanceTaskWorkflow('${task._id}', 'completed')" title="Mark as Completed & Send Email">
+                    <i class="fa-solid fa-check-double"></i> Complete
+                </button>
+            `;
+        } else {
+            workflowButton = `
+                <span class="locked-status-badge" title="Completed tasks are locked against reversals">
+                    <i class="fa-solid fa-lock"></i> Locked
+                </span>
+            `;
+        }
+
+        const userCell = isAdmin
+            ? `<td><span class="user-pill"><i class="fa-regular fa-user"></i> ${escapeHtml(task.user?.username || "Self")}</span></td>`
+            : "";
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -239,13 +352,15 @@ function displayTasks() {
                     ${getStatusName(status)}
                 </span>
             </td>
+            ${userCell}
             <td>${createdDate}</td>
-            <td>
-                <button class="update-btn" onclick="editTask('${task._id}')" title="Edit Task">
-                    <i class="fa-solid fa-pen"></i> Edit
+            <td class="action-cell">
+                ${workflowButton}
+                <button class="update-btn" onclick="editTask('${task._id}')" title="Edit Task details">
+                    <i class="fa-solid fa-pen"></i>
                 </button>
                 <button class="delete-btn" onclick="deleteTask('${task._id}')" title="Delete Task">
-                    <i class="fa-solid fa-trash"></i> Delete
+                    <i class="fa-solid fa-trash"></i>
                 </button>
             </td>
         `;
@@ -253,19 +368,59 @@ function displayTasks() {
     });
 }
 
-function escapeHtml(str) {
-    if (!str) return "";
-    return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
+// ==================================================
+// Advance Task Workflow (Forward-Only Transition & Email Trigger)
+// ==================================================
 
-function capitalize(str) {
-    if (!str) return "";
-    return str.charAt(0).toUpperCase() + str.slice(1);
+async function advanceTaskWorkflow(taskId, targetStatus) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "/login.html";
+        return;
+    }
+
+    const task = allTasks.find((t) => t._id === taskId);
+    if (!task) return;
+
+    const currentStatusVal = getTaskStatus(task);
+    const currentRank = STATUS_RANKS[currentStatusVal] || 1;
+    const targetRank = STATUS_RANKS[targetStatus] || 1;
+
+    // Strict Segregation Check
+    if (targetRank < currentRank) {
+        alert(
+            `Task Workflow Rule:\n\nTasks cannot be reversed backwards from '${getStatusName(currentStatusVal)}' to '${getStatusName(targetStatus)}'.\n\nWorkflow is forward-only: Pending -> In Progress -> Completed.`
+        );
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API}/${taskId}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({
+                status: targetStatus,
+            }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || "Failed to update task status.");
+        }
+
+        if (targetStatus === "completed") {
+            alert(`Task "${task.title}" has been completed!\nA notification email has been dispatched via Nodemailer to ${currentUser?.email || 'your email'}.`);
+        }
+
+        await loadTasks();
+    } catch (err) {
+        console.error("Workflow update error:", err);
+        alert(err.message || "Unable to update task status.");
+    }
 }
 
 // ==================================================
@@ -320,14 +475,15 @@ async function addTask(event) {
             throw new Error(result.message || "Failed to add task.");
         }
 
-        // Reset form
         titleInput.value = "";
         if (descInput) descInput.value = "";
         if (priorityInput) priorityInput.value = "medium";
         const defaultRadio = document.querySelector('input[name="status"][value="pending"]');
         if (defaultRadio) defaultRadio.checked = true;
 
-        alert("Task added successfully!");
+        if (status === "completed") {
+            alert(`Task "${title}" created as completed!\nA completion notification email has been dispatched to ${currentUser?.email || 'your email'}.`);
+        }
 
         await loadTasks();
         showStatusTasks(status);
@@ -340,7 +496,7 @@ async function addTask(event) {
 }
 
 // ==================================================
-// Edit Task
+// Edit Task (With Forward-Only Segregation Validation)
 // ==================================================
 
 async function editTask(id) {
@@ -367,19 +523,33 @@ async function editTask(id) {
     if (newDesc === null) return;
 
     const currentStatusVal = getTaskStatus(task);
-    const choice = prompt(
-        "Select Status:\n1. Pending\n2. In Progress\n3. Completed\n\nEnter 1, 2 or 3:",
-        currentStatusVal === "completed" ? "3" : currentStatusVal === "in-progress" ? "2" : "1"
-    );
+    const currentRank = STATUS_RANKS[currentStatusVal] || 1;
 
-    if (choice === null) return;
+    let statusPromptText = "";
+    if (currentStatusVal === "pending") {
+        statusPromptText = "Select New Status:\n1. Pending (Keep current)\n2. In Progress\n3. Completed\n\nEnter 1, 2, or 3:";
+    } else if (currentStatusVal === "in-progress") {
+        statusPromptText = "Select New Status:\n2. In Progress (Keep current)\n3. Completed (Advance)\n(Note: Reversal to Pending is blocked)\n\nEnter 2 or 3:";
+    } else {
+        statusPromptText = "Task is Completed (Locked against backward reversal).\nPress OK to save title/description.";
+    }
 
-    let newStatus = "pending";
-    if (choice === "2") newStatus = "in-progress";
-    else if (choice === "3") newStatus = "completed";
-    else if (choice !== "1") {
-        alert("Invalid choice. Status not changed.");
-        newStatus = currentStatusVal;
+    let newStatus = currentStatusVal;
+    if (currentStatusVal !== "completed") {
+        const choice = prompt(statusPromptText, currentRank.toString());
+        if (choice === null) return;
+
+        if (choice === "1") newStatus = "pending";
+        else if (choice === "2") newStatus = "in-progress";
+        else if (choice === "3") newStatus = "completed";
+
+        const newRank = STATUS_RANKS[newStatus] || 1;
+        if (newRank < currentRank) {
+            alert(
+                `Invalid transition: Tasks cannot be moved backwards from '${getStatusName(currentStatusVal)}' to '${getStatusName(newStatus)}'. Status remained unchanged.`
+            );
+            newStatus = currentStatusVal;
+        }
     }
 
     try {
@@ -401,10 +571,11 @@ async function editTask(id) {
             throw new Error(result.message || "Failed to update task.");
         }
 
-        alert("Task updated successfully!");
+        if (currentStatusVal !== "completed" && newStatus === "completed") {
+            alert(`Task "${newTitle}" marked as completed!\nA notification email has been sent.`);
+        }
 
         await loadTasks();
-        showStatusTasks(newStatus);
     } catch (error) {
         console.error("Update task error:", error);
         alert(error.message || "Failed to update task.");
@@ -439,8 +610,6 @@ async function deleteTask(id) {
             throw new Error(result.message || "Failed to delete task.");
         }
 
-        alert("Task deleted successfully!");
-
         await loadTasks();
     } catch (error) {
         console.error("Delete task error:", error);
@@ -449,9 +618,94 @@ async function deleteTask(id) {
 }
 
 // ==================================================
-// Download PDF
+// Admin Date-Range Filtered PDF Report Generator
 // ==================================================
 
+function setDatePreset(preset) {
+    const startInput = document.getElementById("reportStartDate");
+    const endInput = document.getElementById("reportEndDate");
+
+    const today = new Date();
+
+    if (preset === "month") {
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        startInput.value = firstDay.toISOString().split("T")[0];
+        endInput.value = today.toISOString().split("T")[0];
+    } else if (preset === "all") {
+        startInput.value = "";
+        endInput.value = "";
+    }
+}
+
+async function generateDateFilteredReport(event) {
+    if (event) event.preventDefault();
+
+    const token = getToken();
+    if (!token) {
+        window.location.href = "/login.html";
+        return;
+    }
+
+    // Role check
+    if (!currentUser || currentUser.role !== "admin") {
+        alert("Access denied: Only Administrators are authorized to generate date-range reports.");
+        return;
+    }
+
+    const startDate = document.getElementById("reportStartDate").value;
+    const endDate = document.getElementById("reportEndDate").value;
+    const status = document.getElementById("reportStatus").value;
+    const allUsersSelect = document.getElementById("reportAllUsers");
+    const allUsers = allUsersSelect ? allUsersSelect.value : "true";
+
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    if (status && status !== "all") params.append("status", status);
+    if (allUsers === "true") params.append("allUsers", "true");
+
+    const downloadUrl = `${API}/report/pdf?${params.toString()}`;
+    const generateBtn = document.getElementById("generateReportBtn");
+
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+    }
+
+    try {
+        const response = await fetch(downloadUrl, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            alert(error.message || "Failed to generate PDF report.");
+            return;
+        }
+
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `Admin-Task-Report-${startDate || "all"}-to-${endDate || "all"}-${Date.now()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+        console.error("PDF generation error:", err);
+        alert("Failed to download PDF report. Please try again.");
+    } finally {
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Generate & Download Date-Range PDF';
+        }
+    }
+}
+
+// Download PDF for current tab (Available for all users)
 async function downloadCurrentStatusPDF() {
     const token = getToken();
     if (!token) {
@@ -460,7 +714,7 @@ async function downloadCurrentStatusPDF() {
     }
 
     try {
-        const response = await fetch(API + "/download/" + currentStatus, {
+        const response = await fetch(`${API}/download/${currentStatus}`, {
             headers: {
                 Authorization: "Bearer " + token,
             },
@@ -476,15 +730,34 @@ async function downloadCurrentStatusPDF() {
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = downloadUrl;
-        a.download = "tasks-" + currentStatus + "-" + Date.now() + ".pdf";
+        a.download = `tasks-${currentStatus}-${Date.now()}.pdf`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
         console.error("PDF download error:", err);
-        window.location.href = API + "/download/" + currentStatus + "?token=" + encodeURIComponent(token);
+        window.location.href = `${API}/download/${currentStatus}?token=${encodeURIComponent(token)}`;
     }
+}
+
+// ==================================================
+// String Escape Helpers
+// ==================================================
+
+function escapeHtml(str) {
+    if (!str) return "";
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function capitalize(str) {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 // ==================================================

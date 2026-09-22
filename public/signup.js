@@ -247,6 +247,12 @@ async function registerUser(event) {
     `;
 
 
+    const roleInput =
+        document.getElementById("role");
+
+    const role =
+        roleInput ? roleInput.value : "user";
+
     try {
 
         // ------------------------------------------
@@ -278,6 +284,9 @@ async function registerUser(event) {
 
                             password:
                                 password,
+
+                            role:
+                                role,
 
                         }),
 

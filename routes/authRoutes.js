@@ -12,6 +12,8 @@ const {
     logoutUser,
     googleLogin,
     getGoogleClientId,
+    forgotPassword,
+    resetPassword,
 } = require("../controllers/authController");
 
 
@@ -40,6 +42,28 @@ router.post(
 router.post(
     "/login",
     loginUser
+);
+
+
+// ==================================================
+// Forgot Password
+// POST /auth/forgot-password
+// ==================================================
+
+router.post(
+    "/forgot-password",
+    forgotPassword
+);
+
+
+// ==================================================
+// Reset Password
+// POST /auth/reset-password
+// ==================================================
+
+router.post(
+    "/reset-password",
+    resetPassword
 );
 
 

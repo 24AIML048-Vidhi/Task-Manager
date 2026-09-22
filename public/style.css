@@ -83,14 +83,25 @@ body {
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background: white;
-    color: #6366f1;
+    background: #6366f1;
+    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 18px;
     font-weight: 600;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
 }
 
 .user-info strong {
@@ -779,6 +790,205 @@ tbody tr:hover {
 }
 
 /* ==================================================
+   Role Badges & Session Indicator
+================================================== */
+
+.role-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+}
+
+.role-user {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.role-manager {
+    background: #f59e0b;
+    color: #ffffff;
+}
+
+.role-admin {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.session-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #e0e7ff;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+/* ==================================================
+   Admin Notice Bar & Admin Report Card
+================================================== */
+
+.admin-notice-bar {
+    background: linear-gradient(135deg, #fee2e2, #fef2f2);
+    border-bottom: 1.5px solid #fca5a5;
+    color: #991b1b;
+    font-size: 13.5px;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
+}
+
+.admin-report-card {
+    border-left: 5px solid #6366f1;
+    background: #f8fafc;
+    margin-bottom: 24px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.report-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+    align-items: flex-end;
+}
+
+.report-form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.download-btn-primary {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    transition: 0.2s;
+}
+
+.download-btn-primary:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.quick-preset-btn {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.quick-preset-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+/* ==================================================
+   Workflow Info Banner & Action Buttons
+================================================== */
+
+.workflow-info-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    font-size: 13px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.action-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.flow-btn {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: 0.2s;
+}
+
+.flow-start {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.flow-start:hover {
+    background: #bfdbfe;
+}
+
+.flow-complete {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.flow-complete:hover {
+    background: #bbf7d0;
+}
+
+.locked-status-badge {
+    font-size: 11px;
+    background: #f1f5f9;
+    color: #94a3b8;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.user-pill {
+    font-size: 12px;
+    background: #eef2ff;
+    color: #4f46e5;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ==================================================
    Footer
 ================================================== */
 
@@ -827,3 +1037,4 @@ tbody tr:hover {
         padding: 28px 20px;
     }
 }
+
