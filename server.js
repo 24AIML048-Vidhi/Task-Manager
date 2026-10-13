@@ -26,7 +26,7 @@ const errorHandler = require("./middleware/errorHandler");
 // Configuration
 // --------------------------------------------------
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 
 // Check MongoDB URI
@@ -48,11 +48,19 @@ app.use(logger);
 app.use(validateContentType);
 
 // --------------------------------------------------
-// Frontend
+// Frontend (Serve Old Version from public/)
 // --------------------------------------------------
 
-// Serve files from the public folder
+const fs = require("fs");
+const clientDistPath = path.join(__dirname, "client", "dist");
+
+// Serve files from the public folder (Old Version)
 app.use(express.static(path.join(__dirname, "public")));
+
+// Mount React client under /app if built
+if (fs.existsSync(clientDistPath)) {
+    app.use("/app", express.static(clientDistPath));
+}
 
 // --------------------------------------------------
 // API Routes
@@ -89,24 +97,24 @@ app.use(errorHandler);
 // MongoDB Connection
 // --------------------------------------------------
 
-mongoose
-    .connect(MONGO_URI)
-    .then(() => {
+if (require.main === module) {
+    mongoose
+        .connect(MONGO_URI)
+        .then(() => {
+            console.log("MongoDB connected successfully");
 
-        console.log("MongoDB connected successfully");
-
-        app.listen(PORT, () => {
-            console.log(`Server running on http://localhost:${PORT}`);
-            console.log(`Network access: http://YOUR-PC-IP:${PORT}`);
-            console.log(`Server available on your network at port ${PORT}`);
-            console.log(`Frontend: http://localhost:${PORT}`);
-            console.log(`API: http://localhost:${PORT}/tasks`);
+            app.listen(PORT, () => {
+                console.log(`Server running on http://localhost:${PORT}`);
+                console.log(`Network access: http://YOUR-PC-IP:${PORT}`);
+                console.log(`Server available on your network at port ${PORT}`);
+                console.log(`Frontend: http://localhost:5173 (run from client with npm run dev)`);
+                console.log(`API: http://localhost:${PORT}/tasks`);
+            });
+        })
+        .catch((error) => {
+            console.error("MongoDB connection failed:", error.message);
+            process.exit(1);
         });
+}
 
-    })
-    .catch((error) => {
-
-        console.error("MongoDB connection failed:", error.message);
-
-        process.exit(1);
-    });
+module.exports = app;

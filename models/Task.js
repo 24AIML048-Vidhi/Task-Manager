@@ -3,13 +3,33 @@ const mongoose = require("mongoose");
 const taskSchema = new mongoose.Schema(
     {
         // ==========================================
-        // Task Owner
+        // Task Owner / Creator
         // ==========================================
 
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: [true, "Task user is required"],
+        },
+
+        // ==========================================
+        // Assigned To (Employee / User)
+        // ==========================================
+
+        assignedTo: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+        },
+
+        // ==========================================
+        // Assigned By (Admin / Manager)
+        // ==========================================
+
+        assignedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
         },
 
         // ==========================================

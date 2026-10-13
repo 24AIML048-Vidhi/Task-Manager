@@ -54,10 +54,11 @@ router.get("/:id", getTaskById);
 router.post("/", createTask);
 
 // ==================================================
-// PUT /tasks/:id
+// PUT & PATCH /tasks/:id
 // Update task
 // ==================================================
 router.put("/:id", updateTask);
+router.patch("/:id", updateTask);
 
 // ==================================================
 // DELETE /tasks/:id

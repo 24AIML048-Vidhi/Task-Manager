@@ -606,22 +606,27 @@ async function initGoogleSignUp() {
 
             const container = document.getElementById("googleBtnContainer");
             if (container) {
+                container.innerHTML = "";
                 google.accounts.id.renderButton(container, {
                     theme: "outline",
                     size: "large",
-                    width: 360,
+                    width: 340,
                     text: "signup_with",
                     shape: "rectangular",
                     logo_alignment: "left",
                 });
-                const customBtn = document.getElementById("customGoogleBtn");
-                if (customBtn) customBtn.style.display = "none";
+                setTimeout(() => {
+                    const customBtn = document.getElementById("customGoogleBtn");
+                    if (container.children.length > 0 && customBtn) {
+                        customBtn.style.display = "none";
+                    }
+                }, 300);
             }
         } catch (e) {
             console.error("Google accounts init error:", e);
         }
     } else {
-        setTimeout(initGoogleSignUp, 400);
+        setTimeout(initGoogleSignUp, 300);
     }
 }
 

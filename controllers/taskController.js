@@ -1,6 +1,13 @@
 const Task = require("../models/Task");
+const User = require("../models/User");
 const PDFDocument = require("pdfkit");
 const { sendTaskCompletedEmail } = require("../services/emailService");
+const {
+    generateTaskListKey,
+    getCachedTaskList,
+    setCachedTaskList,
+    invalidateTaskListCache,
+} = require("../services/cacheService");
 
 // Status workflow hierarchy ranks: forward only
 const STATUS_RANKS = {
@@ -10,20 +17,54 @@ const STATUS_RANKS = {
 };
 
 // ==================================================
-// GET ALL TASKS
-// GET /tasks
+// GET ALL TASKS (RBAC: Admin, Manager, Employee)
+// GET /tasks (With node-cache 60s TTL)
 // ==================================================
 
 const getAllTasks = async (req, res, next) => {
     try {
+        const role = req.user.role || "employee";
+        const cacheKey = generateTaskListKey(req.user._id, role, req.query);
+
+        // Check node-cache (Cache Hit)
+        const cachedResponse = getCachedTaskList(cacheKey);
+        if (cachedResponse !== undefined) {
+            res.setHeader("X-Cache", "HIT");
+            return res.status(200).json(cachedResponse);
+        }
+
+        res.setHeader("X-Cache", "MISS");
+
         const query = {};
 
-        // Role-based scope
-        const isStaff = req.user.role === "admin" || req.user.role === "manager";
-        if (!isStaff || req.query.self === "true") {
-            query.user = req.user._id;
-        } else if (req.query.userId) {
-            query.user = req.query.userId;
+        if (role === "admin") {
+            // Admin can see all tasks, or filter by specific user
+            if (req.query.userId) {
+                query.$or = [{ user: req.query.userId }, { assignedTo: req.query.userId }];
+            }
+        } else if (role === "manager") {
+            // Manager can see:
+            // 1. Tasks created by manager
+            // 2. Tasks assigned to manager
+            // 3. Tasks assigned BY manager
+            // 4. Tasks of employees whose manager is this manager
+            if (req.query.self === "true") {
+                query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
+            } else {
+                const subordinates = await User.find({ manager: req.user._id }).select("_id");
+                const subordinateIds = subordinates.map((s) => s._id);
+
+                query.$or = [
+                    { user: req.user._id },
+                    { assignedTo: req.user._id },
+                    { assignedBy: req.user._id },
+                    { user: { $in: subordinateIds } },
+                    { assignedTo: { $in: subordinateIds } },
+                ];
+            }
+        } else {
+            // Employee can see tasks assigned to him OR created by him
+            query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
         }
 
         // Status filter
@@ -51,13 +92,22 @@ const getAllTasks = async (req, res, next) => {
 
         const tasks = await Task.find(query)
             .populate("user", "username email role")
+            .populate("assignedTo", "username email role")
+            .populate("assignedBy", "username email role")
             .sort({ createdAt: -1 });
+            
 
-        res.status(200).json({
+        const responsePayload = {
             success: true,
             count: tasks.length,
             data: tasks,
-        });
+        };
+
+        // Cache the response in node-cache (with 60-second TTL)
+        // Correctly caches empty task lists (count: 0, data: [])
+        setCachedTaskList(cacheKey, responsePayload, 60);
+
+        return res.status(200).json(responsePayload);
     } catch (error) {
         next(error);
     }
@@ -70,19 +120,48 @@ const getAllTasks = async (req, res, next) => {
 
 const getTaskById = async (req, res, next) => {
     try {
-        const query = { _id: req.params.id };
-        const isStaff = req.user.role === "admin" || req.user.role === "manager";
-        if (!isStaff) {
-            query.user = req.user._id;
-        }
-
-        const task = await Task.findOne(query).populate("user", "username email role");
+        const task = await Task.findById(req.params.id)
+            .populate("user", "username email role")
+            .populate("assignedTo", "username email role")
+            .populate("assignedBy", "username email role");
 
         if (!task) {
             return res.status(404).json({
                 success: false,
                 message: "Task not found.",
             });
+        }
+
+        // Authorization check
+        const role = req.user.role || "employee";
+        if (role === "admin") {
+            // Admin has full access
+        } else if (role === "manager") {
+            const isOwner = task.user?._id?.toString() === req.user._id.toString();
+            const isAssignee = task.assignedTo?._id?.toString() === req.user._id.toString();
+            const isAssigner = task.assignedBy?._id?.toString() === req.user._id.toString();
+            
+            const subordinates = await User.find({ manager: req.user._id }).select("_id");
+            const subordinateIds = subordinates.map((s) => s._id.toString());
+            const isSubordinateTask =
+                subordinateIds.includes(task.user?._id?.toString()) ||
+                subordinateIds.includes(task.assignedTo?._id?.toString());
+
+            if (!isOwner && !isAssignee && !isAssigner && !isSubordinateTask) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. You are not authorized to view this task.",
+                });
+            }
+        } else {
+            const isOwner = task.user?._id?.toString() === req.user._id.toString();
+            const isAssignee = task.assignedTo?._id?.toString() === req.user._id.toString();
+            if (!isOwner && !isAssignee) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. You can only view tasks assigned to or created by you.",
+                });
+            }
         }
 
         res.status(200).json({
@@ -95,13 +174,13 @@ const getTaskById = async (req, res, next) => {
 };
 
 // ==================================================
-// CREATE TASK
+// CREATE TASK (Role-Based Assignment)
 // POST /tasks
 // ==================================================
 
 const createTask = async (req, res, next) => {
     try {
-        const { title, description, priority, status } = req.body;
+        const { title, description, priority, status, assignedTo } = req.body;
 
         if (!title || !title.trim()) {
             return res.status(400).json({
@@ -116,8 +195,42 @@ const createTask = async (req, res, next) => {
         const validPriorities = ["low", "medium", "high"];
         const taskPriority = validPriorities.includes(priority) ? priority : "medium";
 
+        const role = req.user.role || "employee";
+        let targetAssignee = req.user._id;
+
+        if (role === "admin") {
+            // Admin can assign task to ANY user or employee
+            if (assignedTo) {
+                const userExists = await User.findById(assignedTo);
+                if (!userExists) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Assigned user does not exist.",
+                    });
+                }
+                targetAssignee = assignedTo;
+            }
+        } else if (role === "manager") {
+            // Manager can assign task to employees under him or any employee, or to himself
+            if (assignedTo && assignedTo.toString() !== req.user._id.toString()) {
+                const targetUser = await User.findById(assignedTo);
+                if (!targetUser) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Assigned employee does not exist.",
+                    });
+                }
+                targetAssignee = assignedTo;
+            }
+        } else {
+            // Employee can only add his own tasks
+            targetAssignee = req.user._id;
+        }
+
         const task = await Task.create({
-            user: req.user._id,
+            user: targetAssignee,
+            assignedTo: targetAssignee,
+            assignedBy: req.user._id,
             title: title.trim(),
             description: description ? description.trim() : "",
             priority: taskPriority,
@@ -125,17 +238,30 @@ const createTask = async (req, res, next) => {
             completed: taskStatus === "completed",
         });
 
+        const populatedTask = await Task.findById(task._id)
+            .populate("user", "username email role")
+            .populate("assignedTo", "username email role")
+            .populate("assignedBy", "username email role");
+
         // If created directly as completed, send notification email
         if (task.status === "completed") {
-            sendTaskCompletedEmail(req.user, task).catch((err) =>
+            sendTaskCompletedEmail(populatedTask.assignedTo || req.user, task).catch((err) =>
                 console.error("Task completion email notification error:", err)
             );
         }
 
+        // Invalidate affected task-list cache entries immediately
+        const affectedUsers = [
+            req.user._id,
+            populatedTask.assignedTo?._id,
+            populatedTask.user?._id,
+        ];
+        invalidateTaskListCache(affectedUsers);
+
         res.status(201).json({
             success: true,
             message: "Task created successfully.",
-            data: task,
+            data: populatedTask,
         });
     } catch (error) {
         next(error);
@@ -149,22 +275,50 @@ const createTask = async (req, res, next) => {
 
 const updateTask = async (req, res, next) => {
     try {
-        const { title, description, priority, status } = req.body;
+        const { title, description, priority, status, assignedTo } = req.body;
+        const role = req.user.role || "employee";
 
-        // Find existing task first to check ownership and current status
-        const query = { _id: req.params.id };
-        const isStaff = req.user.role === "admin" || req.user.role === "manager";
-        if (!isStaff) {
-            query.user = req.user._id;
-        }
-
-        const existingTask = await Task.findOne(query);
+        // Find existing task first
+        const existingTask = await Task.findById(req.params.id);
 
         if (!existingTask) {
             return res.status(404).json({
                 success: false,
                 message: "Task not found.",
             });
+        }
+
+        // Check update permission
+        if (role === "admin") {
+            // Admin can update any task
+        } else if (role === "manager") {
+            const isOwner = existingTask.user?.toString() === req.user._id.toString();
+            const isAssignee = existingTask.assignedTo?.toString() === req.user._id.toString();
+            const isAssigner = existingTask.assignedBy?.toString() === req.user._id.toString();
+
+            const subordinates = await User.find({ manager: req.user._id }).select("_id");
+            const subordinateIds = subordinates.map((s) => s._id.toString());
+            const isSubordinateTask =
+                subordinateIds.includes(existingTask.user?.toString()) ||
+                subordinateIds.includes(existingTask.assignedTo?.toString());
+
+            if (!isOwner && !isAssignee && !isAssigner && !isSubordinateTask) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. You can only update tasks in your team.",
+                });
+            }
+        } else {
+            // Employee can update tasks assigned to him or created by him
+            const isOwner = existingTask.user?.toString() === req.user._id.toString();
+            const isAssignee = existingTask.assignedTo?.toString() === req.user._id.toString();
+
+            if (!isOwner && !isAssignee) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. You can only update your own assigned tasks.",
+                });
+            }
         }
 
         const updateData = {};
@@ -191,6 +345,14 @@ const updateTask = async (req, res, next) => {
                 });
             }
             updateData.priority = priority;
+        }
+
+        if (assignedTo && (role === "admin" || role === "manager")) {
+            const userExists = await User.findById(assignedTo);
+            if (userExists) {
+                updateData.assignedTo = assignedTo;
+                updateData.user = assignedTo;
+            }
         }
 
         let isMarkedCompleted = false;
@@ -222,22 +384,36 @@ const updateTask = async (req, res, next) => {
             }
         }
 
-        const updatedTask = await Task.findOneAndUpdate(
-            query,
+        const updatedTask = await Task.findByIdAndUpdate(
+            req.params.id,
             updateData,
             {
                 new: true,
                 runValidators: true,
             }
-        ).populate("user", "username email");
+        )
+            .populate("user", "username email role")
+            .populate("assignedTo", "username email role")
+            .populate("assignedBy", "username email role");
 
         // Send task completion email when status transitions to completed
         if (isMarkedCompleted) {
-            const recipientUser = updatedTask.user || req.user;
+            const recipientUser = updatedTask.assignedTo || updatedTask.user || req.user;
             sendTaskCompletedEmail(recipientUser, updatedTask).catch((err) =>
                 console.error("Task completion email notification error:", err)
             );
         }
+
+        // Invalidate affected task-list cache entries immediately
+        const affectedUsers = [
+            req.user._id,
+            existingTask.user,
+            existingTask.assignedTo,
+            existingTask.assignedBy,
+            updatedTask.user?._id,
+            updatedTask.assignedTo?._id,
+        ];
+        invalidateTaskListCache(affectedUsers);
 
         res.status(200).json({
             success: true,
@@ -256,20 +432,50 @@ const updateTask = async (req, res, next) => {
 
 const deleteTask = async (req, res, next) => {
     try {
-        const query = { _id: req.params.id };
-        const isStaff = req.user.role === "admin" || req.user.role === "manager";
-        if (!isStaff) {
-            query.user = req.user._id;
-        }
+        const role = req.user.role || "employee";
+        const existingTask = await Task.findById(req.params.id);
 
-        const task = await Task.findOneAndDelete(query);
-
-        if (!task) {
+        if (!existingTask) {
             return res.status(404).json({
                 success: false,
                 message: "Task not found.",
             });
         }
+
+        if (role === "admin") {
+            // Admin can delete any task
+        } else if (role === "manager") {
+            // Manager can delete tasks created or assigned by him
+            const isOwner = existingTask.user?.toString() === req.user._id.toString();
+            const isAssigner = existingTask.assignedBy?.toString() === req.user._id.toString();
+            if (!isOwner && !isAssigner) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. Managers can only delete tasks created or assigned by them.",
+                });
+            }
+        } else {
+            // Employee can delete tasks created by him (self-created)
+            const isOwner = existingTask.user?.toString() === req.user._id.toString();
+            const isSelfAssigned = !existingTask.assignedBy || existingTask.assignedBy.toString() === req.user._id.toString();
+            if (!isOwner || !isSelfAssigned) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. Employees cannot delete tasks assigned by a manager or admin.",
+                });
+            }
+        }
+
+        await Task.findByIdAndDelete(req.params.id);
+
+        // Invalidate affected task-list cache entries immediately
+        const affectedUsers = [
+            req.user._id,
+            existingTask.user,
+            existingTask.assignedTo,
+            existingTask.assignedBy,
+        ];
+        invalidateTaskListCache(affectedUsers);
 
         res.status(200).json({
             success: true,
@@ -289,10 +495,28 @@ const getTaskStats = async (req, res, next) => {
     try {
         const { startDate, endDate, userId, allUsers } = req.query;
         const query = {};
+        const role = req.user.role || "employee";
 
-        const isStaff = req.user.role === "admin" || req.user.role === "manager";
-        if (!isStaff || allUsers !== "true") {
-            query.user = isStaff && userId ? userId : req.user._id;
+        if (role === "admin") {
+            if (userId) {
+                query.$or = [{ user: userId }, { assignedTo: userId }];
+            }
+        } else if (role === "manager") {
+            if (userId) {
+                query.$or = [{ user: userId }, { assignedTo: userId }];
+            } else if (allUsers !== "true") {
+                const subordinates = await User.find({ manager: req.user._id }).select("_id");
+                const subordinateIds = subordinates.map((s) => s._id);
+                query.$or = [
+                    { user: req.user._id },
+                    { assignedTo: req.user._id },
+                    { assignedBy: req.user._id },
+                    { user: { $in: subordinateIds } },
+                    { assignedTo: { $in: subordinateIds } },
+                ];
+            }
+        } else {
+            query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
         }
 
         if (startDate || endDate) {
@@ -341,13 +565,14 @@ const downloadTasksPDF = async (req, res, next) => {
     try {
         const { status } = req.params;
         const { startDate, endDate, priority, userId, allUsers } = req.query;
+        const role = req.user.role || "employee";
 
-        // Strict Role Check: ONLY Admin can generate date-range reports
-        if (startDate || endDate) {
-            if (req.user.role !== "admin") {
+        // Strict Role Check: ONLY Admin can generate system-wide date-range reports
+        if ((startDate || endDate) && allUsers === "true") {
+            if (role !== "admin") {
                 return res.status(403).json({
                     success: false,
-                    message: "Access denied. Only Administrators are permitted to generate date-range reports.",
+                    message: "Access denied. Only Administrators are permitted to generate system-wide date-range reports.",
                 });
             }
         }
@@ -355,9 +580,26 @@ const downloadTasksPDF = async (req, res, next) => {
         const query = {};
 
         // RBAC access control
-        const isStaff = req.user.role === "admin" || req.user.role === "manager";
-        if (!isStaff || allUsers !== "true") {
-            query.user = isStaff && userId ? userId : req.user._id;
+        if (role === "admin") {
+            if (userId) {
+                query.$or = [{ user: userId }, { assignedTo: userId }];
+            }
+        } else if (role === "manager") {
+            if (userId) {
+                query.$or = [{ user: userId }, { assignedTo: userId }];
+            } else {
+                const subordinates = await User.find({ manager: req.user._id }).select("_id");
+                const subordinateIds = subordinates.map((s) => s._id);
+                query.$or = [
+                    { user: req.user._id },
+                    { assignedTo: req.user._id },
+                    { assignedBy: req.user._id },
+                    { user: { $in: subordinateIds } },
+                    { assignedTo: { $in: subordinateIds } },
+                ];
+            }
+        } else {
+            query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
         }
 
         const validStatuses = ["pending", "in-progress", "completed"];
@@ -393,6 +635,8 @@ const downloadTasksPDF = async (req, res, next) => {
 
         const tasks = await Task.find(query)
             .populate("user", "username email role")
+            .populate("assignedTo", "username email role")
+            .populate("assignedBy", "username email role")
             .sort({ createdAt: -1 });
 
         // Calculate metrics
@@ -431,13 +675,13 @@ const downloadTasksPDF = async (req, res, next) => {
         doc.moveDown(3.5);
 
         // Metadata section
-        const userRoleText = (req.user.role || "User").toUpperCase();
+        const userRoleText = (req.user.role || "Employee").toUpperCase();
         doc.fillColor("#1e293b")
             .fontSize(10)
             .font("Helvetica-Bold")
             .text(`Generated By: `, 40, 105, { continued: true })
             .font("Helvetica")
-            .text(`${req.user.username} (${req.user.email}) [${userRoleText}]`);
+            .text(`${req.user.username} (${req.user.email}) [Role: ${userRoleText}]`);
 
         doc.font("Helvetica-Bold")
             .text(`Date Filter: `, 40, 122, { continued: true })
@@ -492,13 +736,13 @@ const downloadTasksPDF = async (req, res, next) => {
 
             tasks.forEach((task, index) => {
                 // Page break check
-                if (currentY > 720) {
+                if (currentY > 700) {
                     doc.addPage();
                     currentY = 50;
                 }
 
                 // Task Card Background
-                doc.rect(40, currentY, 515, 65).fillAndStroke("#ffffff", "#e2e8f0");
+                doc.rect(40, currentY, 515, 75).fillAndStroke("#ffffff", "#e2e8f0");
 
                 // Priority color indicator
                 let priorityColor = "#64748b";
@@ -506,40 +750,48 @@ const downloadTasksPDF = async (req, res, next) => {
                 if (task.priority === "medium") priorityColor = "#f59e0b";
                 if (task.priority === "low") priorityColor = "#10b981";
 
-                doc.rect(40, currentY, 4, 65).fill(priorityColor);
+                doc.rect(40, currentY, 4, 75).fill(priorityColor);
 
                 // Task Title
                 doc.fillColor("#0f172a")
                     .fontSize(11)
                     .font("Helvetica-Bold")
-                    .text(`${index + 1}. ${task.title}`, 52, currentY + 10, {
+                    .text(`${index + 1}. ${task.title}`, 52, currentY + 8, {
                         width: 320,
                         ellipsis: true,
                     });
 
+                // Assignee and Assigner info
+                const assignedToName = task.assignedTo?.username || task.user?.username || "Self";
+                const assignedByName = task.assignedBy?.username || "Self";
+
                 // Status & Priority Badges
-                doc.fontSize(9).font("Helvetica");
+                doc.fontSize(8.5).font("Helvetica");
                 doc.fillColor("#475569")
-                    .text(`Status: ${task.status.toUpperCase()} | Priority: ${(task.priority || "medium").toUpperCase()} | Created: ${new Date(task.createdAt).toLocaleDateString()}`, 52, currentY + 28);
+                    .text(`Status: ${task.status.toUpperCase()} | Priority: ${(task.priority || "medium").toUpperCase()} | Assigned to: ${assignedToName} (By: ${assignedByName})`, 52, currentY + 24);
+
+                // Dates
+                doc.fontSize(8).fillColor("#64748b")
+                    .text(`Created: ${new Date(task.createdAt).toLocaleDateString()}`, 52, currentY + 38);
 
                 // Task Description
                 if (task.description) {
                     doc.fontSize(8.5)
                         .font("Helvetica-Oblique")
                         .fillColor("#64748b")
-                        .text(task.description, 52, currentY + 44, {
+                        .text(task.description, 52, currentY + 52, {
                             width: 480,
-                            height: 14,
+                            height: 16,
                             ellipsis: true,
                         });
                 } else {
                     doc.fontSize(8.5)
                         .font("Helvetica-Oblique")
                         .fillColor("#94a3b8")
-                        .text("No description provided.", 52, currentY + 44);
+                        .text("No description provided.", 52, currentY + 52);
                 }
 
-                currentY += 75;
+                currentY += 85;
             });
         }
 
