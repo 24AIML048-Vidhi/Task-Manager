@@ -26,14 +26,8 @@ const errorHandler = require("./middleware/errorHandler");
 // Configuration
 // --------------------------------------------------
 
-const PORT = Number(process.env.PORT) || 3000;
-const MONGO_URI = process.env.MONGO_URI;
-
-// Check MongoDB URI
-if (!MONGO_URI) {
-    console.error("MONGO_URI is not defined in .env");
-    process.exit(1);
-}
+const PORT = Number(process.env.PORT) || 5000;
+const MONGO_URI = process.env.MONGO_URI || "mongodb://mongodb:27017/taskdb";
 
 // --------------------------------------------------
 // Built-in Middleware
