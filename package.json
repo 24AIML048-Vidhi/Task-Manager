@@ -8,7 +8,10 @@
     "dev": "nodemon server.js",
     "build": "npm --prefix client run build",
     "client": "npm --prefix client run dev",
-    "client:build": "npm --prefix client run build"
+    "client:build": "npm --prefix client run build",
+    "test:p9": "node test-practical9.js",
+    "test:p10": "node test-practical10.js",
+    "test": "node test-practical10.js"
   },
   "keywords": [
     "node",

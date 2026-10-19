@@ -8,6 +8,7 @@ const {
     setCachedTaskList,
     invalidateTaskListCache,
 } = require("../services/cacheService");
+const { taskEventEmitter } = require("../services/eventService");
 
 // Status workflow hierarchy ranks: forward only
 const STATUS_RANKS = {
@@ -258,6 +259,24 @@ const createTask = async (req, res, next) => {
         ];
         invalidateTaskListCache(affectedUsers);
 
+        // PRACTICAL 10: Emit 'task-created' event asynchronously via EventEmitter
+        const emittedAt = new Date();
+        console.log(`[API Controller] [${emittedAt.toISOString()}] Emitting 'task-created' event for "${populatedTask.title}"...`);
+        taskEventEmitter.emit("task-created", {
+            taskId: populatedTask._id,
+            title: populatedTask.title,
+            description: populatedTask.description,
+            priority: populatedTask.priority,
+            status: populatedTask.status,
+            assignedTo: populatedTask.assignedTo,
+            assignedBy: populatedTask.assignedBy,
+            emittedAt,
+            simulateError: req.body.simulateError || false,
+        });
+
+        const respondedAt = new Date();
+        console.log(`[API Controller] [${respondedAt.toISOString()}] Responding HTTP 201 Created immediately.`);
+
         res.status(201).json({
             success: true,
             message: "Task created successfully.",
@@ -476,6 +495,19 @@ const deleteTask = async (req, res, next) => {
             existingTask.assignedBy,
         ];
         invalidateTaskListCache(affectedUsers);
+
+        // PRACTICAL 10: Emit 'task-deleted' event asynchronously via EventEmitter
+        const deletedAt = new Date();
+        console.log(`[API Controller] [${deletedAt.toISOString()}] Emitting 'task-deleted' event for "${existingTask.title}"...`);
+        taskEventEmitter.emit("task-deleted", {
+            taskId: existingTask._id,
+            title: existingTask.title,
+            deletedBy: req.user,
+            deletedAt,
+        });
+
+        const respondedAt = new Date();
+        console.log(`[API Controller] [${respondedAt.toISOString()}] Responding HTTP 200 OK for deletion immediately.`);
 
         res.status(200).json({
             success: true,
