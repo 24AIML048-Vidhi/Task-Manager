@@ -1,6 +1,32 @@
 # Task Manager Pro — AWDF Practicals Repository
 
+[![CI Pipeline](https://github.com/24AIML048-Vidhi/Task-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/24AIML048-Vidhi/Task-Manager/actions/workflows/ci.yml)
+
 A full-stack Role-Based Task Management Application built with **Node.js, Express, MongoDB (Mongoose), React 18, and Vite**.
+
+---
+
+## Practical 12: CI/CD Pipeline with GitHub Actions
+
+### Overview
+Automated Continuous Integration (CI) pipeline using **GitHub Actions** to guarantee automated test validation, code quality, and build integrity across pushes and pull requests.
+
+### Key Implementations:
+1. **GitHub Actions Workflow (`.github/workflows/ci.yml`):**
+   - Automatically triggers on every `push` and `pull_request` targeting `main` and `master`.
+   - Uses `ubuntu-latest` with official actions `actions/checkout@v4` and `actions/setup-node@v4` (Node.js 20.x LTS).
+   - Executes two parallel verification jobs:
+     - **`test-backend`**: Installs backend dependencies and executes automated Jest + Supertest API integration tests.
+     - **`build-frontend`**: Installs client dependencies and compiles the React 18/Vite production build.
+2. **Automated Backend Testing (Jest & Supertest):**
+   - Dedicated API integration test suite (`tests/tasks.test.js`) verifying JWT authentication guards, task querying, task creation, route validations, and public endpoints.
+   - Fully decoupled from live database instances using Mongoose model mocks, enabling instantaneous execution in isolated CI environments.
+3. **Deliberate Failure & Recovery Demonstration:**
+   - Demonstrates red-to-green CI pipeline progression by inducing a deliberate assertion failure, catching the failure on GitHub Actions, and restoring passing status.
+4. **Pipeline Screenshots:**
+   - Stored in [`docs/practical-12/`](./docs/practical-12/):
+     - `ci-failed.png`: Demonstrates the deliberate test failure caught in GitHub Actions.
+     - `ci-passed.png`: Demonstrates the successful pipeline run with all tests passing.
 
 ---
 
@@ -36,6 +62,11 @@ npm run dev
 ### 3. Production Build & Code Splitting Verification
 ```bash
 npm run build
+```
+
+### 4. Run Automated CI Test Suite
+```bash
+npm test
 ```
 
 Full Practical 8 documentation and before/after metrics table are available in [PRACTICAL_8_REPORT.md](./PRACTICAL_8_REPORT.md).
