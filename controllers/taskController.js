@@ -39,17 +39,20 @@ const getAllTasks = async (req, res, next) => {
         const query = {};
 
         if (role === "admin") {
-            // Admin can see all tasks, or filter by specific user
+            // Admin can see all tasks, or filter by specific individual user
             if (req.query.userId) {
                 query.$or = [{ user: req.query.userId }, { assignedTo: req.query.userId }];
+            } else if (req.query.self === "true") {
+                query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
             }
         } else if (role === "manager") {
             // Manager can see:
-            // 1. Tasks created by manager
-            // 2. Tasks assigned to manager
-            // 3. Tasks assigned BY manager
-            // 4. Tasks of employees whose manager is this manager
-            if (req.query.self === "true") {
+            // 1. Tasks of a specific individual user
+            // 2. Tasks created by or assigned to manager himself (self === "true")
+            // 3. Tasks of employees under this manager
+            if (req.query.userId) {
+                query.$or = [{ user: req.query.userId }, { assignedTo: req.query.userId }];
+            } else if (req.query.self === "true") {
                 query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
             } else {
                 const subordinates = await User.find({ manager: req.user._id }).select("_id");
@@ -525,17 +528,21 @@ const deleteTask = async (req, res, next) => {
 
 const getTaskStats = async (req, res, next) => {
     try {
-        const { startDate, endDate, userId, allUsers } = req.query;
+        const { startDate, endDate, userId, allUsers, self } = req.query;
         const query = {};
         const role = req.user.role || "employee";
 
         if (role === "admin") {
             if (userId) {
                 query.$or = [{ user: userId }, { assignedTo: userId }];
+            } else if (self === "true") {
+                query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
             }
         } else if (role === "manager") {
             if (userId) {
                 query.$or = [{ user: userId }, { assignedTo: userId }];
+            } else if (self === "true") {
+                query.$or = [{ user: req.user._id }, { assignedTo: req.user._id }];
             } else if (allUsers !== "true") {
                 const subordinates = await User.find({ manager: req.user._id }).select("_id");
                 const subordinateIds = subordinates.map((s) => s._id);

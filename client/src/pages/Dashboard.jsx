@@ -22,13 +22,16 @@ export const Dashboard = () => {
   const [recentTasks, setRecentTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Default to showing tasks of that individual user (with toggle to all team for admin/manager)
+  const [viewMode, setViewMode] = useState('self');
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const params = (isAdmin || isManager) && viewMode === 'all' ? {} : { self: 'true' };
       const [statsRes, tasksRes] = await Promise.all([
-        api.getStats(),
-        api.getTasks(),
+        api.getStats(params),
+        api.getTasks(params),
       ]);
       if (statsRes.success) setStats(statsRes.stats);
       if (tasksRes.success) setRecentTasks(tasksRes.data.slice(0, 5));
@@ -41,7 +44,7 @@ export const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [viewMode]);
 
   const handleCreateTask = async (taskData) => {
     await api.createTask(taskData);
@@ -113,13 +116,61 @@ export const Dashboard = () => {
 
       {/* Recent Tasks Preview */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>
-            Recent Activity & Assigned Tasks
-          </h2>
-          <Link to="/projects" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            View Full List <ArrowRight size={14} />
-          </Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>
+              {viewMode === 'self' ? `My Tasks & Recent Activity (${user?.username})` : 'All Team Tasks & Activity'}
+            </h2>
+            <p style={{ fontSize: '13px', color: '#64748b' }}>
+              {viewMode === 'self' ? 'Showing tasks of this individual (assigned to or created by you)' : 'Showing all organization / team tasks'}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {(isAdmin || isManager) && (
+              <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('self')}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: viewMode === 'self' ? '#ffffff' : 'transparent',
+                    color: viewMode === 'self' ? '#4f46e5' : '#64748b',
+                    boxShadow: viewMode === 'self' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  My Tasks
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('all')}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: viewMode === 'all' ? '#ffffff' : 'transparent',
+                    color: viewMode === 'all' ? '#4f46e5' : '#64748b',
+                    boxShadow: viewMode === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  All Team
+                </button>
+              </div>
+            )}
+            <Link to={viewMode === 'self' ? '/projects?self=true' : '/projects'} style={{ fontSize: '13px', fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              View Project Board <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
 
         {loading ? (

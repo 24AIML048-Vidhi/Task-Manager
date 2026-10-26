@@ -6,6 +6,63 @@ A full-stack Role-Based Task Management Application built with **Node.js, Expres
 
 ---
 
+## Practical 13: AI API Integration into a Web Application (Google Gemini API)
+
+### Overview
+Integration of an **AI Task Description Generator** using the official **Google Gen AI JavaScript SDK (`@google/genai`)**. The feature enhances the task creation workflow by generating clear, actionable, single-paragraph descriptions based on the entered task title, while enforcing backend security, rate limiting, graceful error handling, and responsible AI disclosures.
+
+### Architecture & Request Flow
+```
+┌─────────────────────────┐          POST /api/ai/generate-description          ┌─────────────────────────┐
+│       React / Vite      │ ───────────────────────────────────────────────────> │     Express Backend     │
+│   (TaskModal Component) │                                                      │  - JWT Authentication   │
+│  - User enters title    │ <─────────────────────────────────────────────────── │  - In-Memory Rate Limit │
+│  - Click 'Generate Desc'│   { description: "...", fallback: false }            │  - Input Validation     │
+└─────────────────────────┘                                                      └────────────┬────────────┘
+                                                                                              │ Google Gen AI SDK
+                                                                                              │ (Title only)
+                                                                                              ▼
+                                                                                 ┌─────────────────────────┐
+                                                                                 │    Google Gemini API    │
+                                                                                 │   (gemini-2.5-flash)    │
+                                                                                 └─────────────────────────┘
+```
+
+### Key Implementations:
+1. **Secure Backend Endpoint (`POST /api/ai/generate-description`):**
+   - Implemented in [`controllers/aiController.js`](./controllers/aiController.js) and [`routes/aiRoutes.js`](./routes/aiRoutes.js).
+   - Validates that `title` is a non-empty string between 3 and 150 characters.
+   - Protected with JWT authentication ([`authMiddleware.js`](./middleware/authMiddleware.js)).
+   - Enforces provider timeouts and redacts API keys from all logs.
+2. **Dual-Mode AI Engine (Live Google Gemini API & Zero-Cost Demo Mode):**
+   - **Offline Demo Mode (`AI_DEMO_MODE=true`):** Built into [`services/aiService.js`](./services/aiService.js). Generates realistic, contextual task descriptions locally without external network requests or paid API subscriptions. Ideal for lab evaluation and grading when external project billing is restricted. Responses are clearly labeled with a `Demo Mode` badge and transparent disclaimer.
+   - **Live Google Gen AI SDK Mode (`AI_DEMO_MODE=false`):** Built with official `@google/genai` (`GoogleGenAI`). Uses `gemini-2.5-flash` with tailored system instructions when an authorized API key is configured.
+3. **Discrete Error Classification (401, 403, 404, 429):**
+   - Safely parses and categorizes provider responses:
+     - `401 AUTH_ERROR`: Invalid or revoked credentials.
+     - `403 PROJECT_RESTRICTION`: Google Cloud project requires billing setup.
+     - `404 MODEL_NOT_FOUND`: Model retired or unavailable.
+     - `429 QUOTA_OR_RATE_LIMIT`: Free-tier request or token quota exhausted.
+4. **In-Memory Rate Limiting ([`middleware/aiRateLimiter.js`](./middleware/aiRateLimiter.js)):**
+   - Enforces a 60-second cooldown per unique `userId:title` combination using SHA-256 hashes.
+   - Cooldown only activates on successfully accepted requests.
+   - Live frontend countdown timer automatically ticks down and re-enables the button on expiration.
+5. **Graceful Fallback & Error Degradation:**
+   - If `GEMINI_API_KEY` is missing or unauthorized and demo mode is off, the backend returns a clean fallback:
+     `{ "description": "", "fallback": true, "message": "AI suggestions are temporarily unavailable. Please enter the description manually." }`
+   - Normal task creation and editing remain 100% operational and are never blocked.
+6. **Frontend UI Integration ([`client/src/components/TaskModal.jsx`](./client/src/components/TaskModal.jsx)):**
+   - Added `Generate Description` button next to Description with active loading indicator (`Loader2`).
+   - Button is disabled during active requests, active cooldowns (`Wait <N>s`), and when title input is empty.
+   - Clearly flags demo mode suggestions with a teal `Demo Mode` badge.
+   - Generated text is placed directly inside the editable textarea, allowing review and editing before saving.
+   - Features visible responsible AI disclaimer:
+     *`AI-generated suggestion: Please review and edit the description before saving. AI-generated content may be inaccurate.`*
+7. **Automated Testing Suite ([`tests/ai.test.js`](./tests/ai.test.js)):**
+   - 14 automated tests covering live Gemini mocked generation, offline demo mode generation, input validation, token auth enforcement, missing key fallback, 401/403/404/429 error categorization, error sanitizer credentials protection, and rate limiting lifecycles.
+
+---
+
 ## Practical 12: CI/CD Pipeline with GitHub Actions
 
 ### Overview
@@ -19,7 +76,7 @@ Automated Continuous Integration (CI) pipeline using **GitHub Actions** to guara
      - **`test-backend`**: Installs backend dependencies and executes automated Jest + Supertest API integration tests.
      - **`build-frontend`**: Installs client dependencies and compiles the React 18/Vite production build.
 2. **Automated Backend Testing (Jest & Supertest):**
-   - Dedicated API integration test suite (`tests/tasks.test.js`) verifying JWT authentication guards, task querying, task creation, route validations, and public endpoints.
+   - Dedicated API integration test suite (`tests/tasks.test.js` & `tests/ai.test.js`) verifying JWT authentication guards, task querying, task creation, route validations, and public endpoints.
    - Fully decoupled from live database instances using Mongoose model mocks, enabling instantaneous execution in isolated CI environments.
 3. **Deliberate Failure & Recovery Demonstration:**
    - Demonstrates red-to-green CI pipeline progression by inducing a deliberate assertion failure, catching the failure on GitHub Actions, and restoring passing status.
@@ -44,28 +101,56 @@ Automated Continuous Integration (CI) pipeline using **GitHub Actions** to guara
 
 ---
 
-## Quick Start
+## Quick Start & Setup Guide
 
-### 1. Backend Server
-```bash
-npm install
-npm run dev
+### 1. How to Obtain a Free Google Gemini API Key
+1. Go to [Google AI Studio](https://aistudio.google.com/).
+2. Sign in with your Google Account.
+3. Click **Get API key** > **Create API key**.
+4. Copy the generated API key (it begins with `AIzaSy...`).
+
+### 2. Configure Environment (`.env`)
+In your project root, configure `.env` (this file is excluded by `.gitignore` and never committed):
+```env
+PORT=3000
+MONGO_URI=mongodb://127.0.0.1:27017/task_manager
+JWT_SECRET=supersecret_jwt_key_task_manager_awdf_2026_secure
+
+# Practical 13 AI Configuration
+# Option A: Zero-cost offline demonstration (Recommended for lab evaluation)
+AI_DEMO_MODE=true
+
+# Option B: Live Google Gemini API (When authorized Google Cloud project is available)
+# AI_DEMO_MODE=false
+GEMINI_API_KEY=your_actual_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-### 2. React Client
+### 3. Install Dependencies
 ```bash
+# Root (Backend dependencies including @google/genai)
+npm install
+
+# Client (Frontend React dependencies)
 cd client
 npm install
+cd ..
+```
+
+### 4. Start the Application
+```bash
+# Terminal 1: Start Backend (Port 3000)
+npm run dev
+
+# Terminal 2: Start Frontend (Port 5173)
+cd client
 npm run dev
 ```
+Open `http://localhost:5173` in your browser.
 
-### 3. Production Build & Code Splitting Verification
+### 5. Run Automated Tests
 ```bash
-npm run build
-```
-
-### 4. Run Automated CI Test Suite
-```bash
+# Runs full Jest test suite (16 tests across tasks.test.js and ai.test.js)
 npm test
 ```
 

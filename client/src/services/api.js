@@ -27,7 +27,11 @@ const handleResponse = async (response) => {
       window.dispatchEvent(new CustomEvent('session-expired'));
     }
     const errorMsg = data.message || 'Request failed with status ' + response.status;
-    throw new Error(errorMsg);
+    const error = new Error(errorMsg);
+    error.status = response.status;
+    error.data = data;
+    error.remainingSeconds = data.remainingSeconds;
+    throw error;
   }
   return data;
 };
@@ -190,6 +194,7 @@ export const api = {
     if (params.endDate) query.append('endDate', params.endDate);
     if (params.userId) query.append('userId', params.userId);
     if (params.allUsers) query.append('allUsers', params.allUsers);
+    if (params.self) query.append('self', params.self);
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
     const res = await fetch(`${API_BASE}/tasks/report/stats${queryString}`, {
@@ -211,5 +216,15 @@ export const api = {
 
     const base = status ? `${API_BASE}/tasks/download/${status}` : `${API_BASE}/tasks/report/pdf`;
     return `${base}?${query.toString()}`;
+  },
+
+  // Practical 13: AI Task Description Generator
+  generateAIDescription: async (title) => {
+    const res = await fetch(`${API_BASE}/api/ai/generate-description`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ title }),
+    });
+    return handleResponse(res);
   },
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import {
@@ -11,7 +12,8 @@ import {
   Mail,
   Calendar,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  FolderKanban
 } from 'lucide-react';
 import TaskModal from '../components/TaskModal';
 
@@ -189,13 +191,22 @@ export const TeamManagement = () => {
                   ) : null}
                 </div>
 
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button
-                    onClick={() => handleAssignTaskToUser(member)}
-                    className="btn btn-primary btn-sm"
-                  >
-                    <Plus size={13} /> Assign Task
-                  </button>
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Link
+                      to={`/projects?userId=${member._id}&userName=${encodeURIComponent(member.username)}`}
+                      className="btn btn-secondary btn-sm"
+                      title={`View tasks of ${member.username}`}
+                    >
+                      <FolderKanban size={13} /> View Tasks
+                    </Link>
+                    <button
+                      onClick={() => handleAssignTaskToUser(member)}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Plus size={13} /> Assign Task
+                    </button>
+                  </div>
 
                   {isAdmin && !isEditingThisUser && (
                     <button

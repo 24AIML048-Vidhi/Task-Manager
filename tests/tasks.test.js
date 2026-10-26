@@ -111,6 +111,26 @@ describe("Task Management API - CI/CD Automated Test Suite", () => {
             expect(res.body.count).toBe(1);
             expect(res.body.data[0].title).toBe("Practical 12 CI Pipeline Verification");
         });
+
+        it("should return HTTP 200 when filtering by individual user (userId)", async () => {
+            const res = await request(app)
+                .get(`/tasks?userId=${mockUserId}`)
+                .set("Authorization", `Bearer ${validAuthToken}`);
+
+            expect(res.statusCode).toBe(200);
+            expect(res.body).toHaveProperty("success", true);
+            expect(Array.isArray(res.body.data)).toBe(true);
+        });
+
+        it("should return HTTP 200 when filtering for that individual's own tasks (self=true)", async () => {
+            const res = await request(app)
+                .get("/tasks?self=true")
+                .set("Authorization", `Bearer ${validAuthToken}`);
+
+            expect(res.statusCode).toBe(200);
+            expect(res.body).toHaveProperty("success", true);
+            expect(Array.isArray(res.body.data)).toBe(true);
+        });
     });
 
     // -------------------------------------------------------------------------

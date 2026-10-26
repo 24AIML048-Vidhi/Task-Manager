@@ -17,6 +17,7 @@ const validateContentType = require("./middleware/validateContentType");
 // Routes
 const authRoutes = require("./routes/authRoutes");
 const taskRoutes = require("./routes/taskRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 // Error handling middleware
 const notFound = require("./middleware/notFound");
@@ -66,6 +67,9 @@ app.use("/auth", authRoutes);
 // All task APIs are available under /tasks
 app.use("/tasks", taskRoutes);
 
+// AI APIs under /api/ai (Practical 13)
+app.use("/api/ai", aiRoutes);
+
 // --------------------------------------------------
 // Root Route
 // --------------------------------------------------
@@ -103,6 +107,7 @@ if (require.main === module) {
                 console.log(`Server available on your network at port ${PORT}`);
                 console.log(`Frontend: http://localhost:5173 (run from client with npm run dev)`);
                 console.log(`API: http://localhost:${PORT}/tasks`);
+                console.log(`AI API: http://localhost:${PORT}/api/ai/generate-description`);
             });
         })
         .catch((error) => {
