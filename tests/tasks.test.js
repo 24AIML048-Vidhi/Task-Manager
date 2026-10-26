@@ -157,7 +157,7 @@ describe("Task Management API - CI/CD Automated Test Suite", () => {
                 .get(`/tasks/${mockTaskId}`)
                 .set("Authorization", `Bearer ${validAuthToken}`);
 
-            expect(res.statusCode).toBe(500);
+            expect(res.statusCode).toBe(200);
             expect(res.body).toHaveProperty("success", true);
             expect(res.body.data).toHaveProperty("_id", mockTaskId);
             expect(res.body.data.title).toBe("Practical 12 CI Pipeline Verification");
