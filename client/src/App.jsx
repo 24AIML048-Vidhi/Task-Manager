@@ -56,7 +56,7 @@ const PublicRoute = ({ children }) => {
 export const App = () => {
   return (
     <AuthProvider>
-      <Router>
+      <Router basename="/app">
         <div className="app-layout">
           <Navbar />
           <SessionTimeoutModal />
