@@ -1,4 +1,4 @@
-const API_BASE = ''; // Uses relative URLs proxied by Vite or same origin in production
+const API_BASE = import.meta.env.VITE_API_URL || ''; // Uses relative URLs proxied by Vite or same origin in production
 
 export const getAuthToken = () => localStorage.getItem('token');
 export const setAuthToken = (token) => {
